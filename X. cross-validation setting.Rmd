@@ -1,0 +1,85 @@
+---
+title: "cross-validation setting"
+author: "Eguchi"
+date: "2018/9/15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse"); library("DataExplorer"); library("GGally"); library("irlba"); library("jsonlite"); library("rlist"); library("summarytools")
+```
+
+```{r}
+base_train <- read_csv("base_train.csv")
+base_test <- read_csv("base_test.csv")
+
+train_device <- read_csv("train_device.csv")
+test_device <- read_csv("test_device.csv")
+
+train_geoNetwork <- read_csv("train_geoNetwork.csv")
+test_geoNetwork <- read_csv("test_geoNetwork.csv")
+
+train_trafficSource <- read_csv("train_trafficSource.csv")
+test_trafficSource <- read_csv("test_trafficSource.csv")
+
+train_totals <- read_csv("totals.csv")
+test_totals <- read_csv("totals_test.csv")
+
+dftrain <- data.frame(base_train, train_device, train_geoNetwork, train_trafficSource, train_totals)
+dftest <- data.frame(base_test, test_device, test_geoNetwork, test_trafficSource, test_totals)
+
+rm(base_train, train_device, train_geoNetwork, train_trafficSource, train_totals, 
+   base_test, test_device, test_geoNetwork, test_trafficSource, test_totals); gc(); gc()
+```
+
+```{r}
+dftrain$transactionRevenue[is.na(dftrain$transactionRevenue)] <- 1
+```
+
+
+```{r}
+dftrain <- dftrain[order(as.Date(dftrain$date, format="%Y/%m/%d")),]
+```
+
+```{r}
+temp_daycount <- as.data.frame(table(dftrain$date))
+```
+
+## time-series CV設定
+```{r}
+dftrainCV1 <- dftrain[1:sum(temp_daycount$Freq[1:121]), ]
+dftrainCV2 <- dftrain[sum(temp_daycount$Freq[1:50]): sum(temp_daycount$Freq[1:172]), ]
+dftrainCV3 <- dftrain[sum(temp_daycount$Freq[1:99]): sum(temp_daycount$Freq[1:221]), ]
+dftrainCV4 <- dftrain[sum(temp_daycount$Freq[1:148]): sum(temp_daycount$Freq[1:270]), ]
+dftrainCV5 <- dftrain[sum(temp_daycount$Freq[1:199]): sum(temp_daycount$Freq[1:321]), ]
+
+dftrainRes1 <- dftrain[sum(temp_daycount$Freq[1:121]): sum(temp_daycount$Freq[1:171]), ]
+dftrainRes2 <- dftrain[sum(temp_daycount$Freq[1:172]): sum(temp_daycount$Freq[1:220]), ]
+dftrainRes3 <- dftrain[sum(temp_daycount$Freq[1:221]): sum(temp_daycount$Freq[1:269]), ]
+dftrainRes4 <- dftrain[sum(temp_daycount$Freq[1:270]): sum(temp_daycount$Freq[1:320]), ]
+dftrainRes5 <- dftrain[sum(temp_daycount$Freq[1:321]): sum(temp_daycount$Freq[1:366]), ]
+```
+
+とてもエレガントとは言えんがまあいいや…
+きれいな書き方あれば希望。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

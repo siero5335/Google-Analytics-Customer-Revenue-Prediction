@@ -1,0 +1,117 @@
+---
+title: "json to csv"
+author: "Eguchi"
+date: "2018/9/14"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(jsonlite)
+library(rlist)
+
+cols_train <- cols(
+  channelGrouping = col_character(),
+  date = col_date(format = '%Y%m%d'),
+  device = col_character(),
+  fullVisitorId = col_character(),
+  geoNetwork = col_character(),
+  sessionId = col_character(),
+  socialEngagementType = col_character(),
+  totals = col_character(),
+  trafficSource = col_character(),
+  visitId = col_character(),
+  visitNumber = col_double(),
+  visitStartTime = col_number()
+)
+
+cols_test <- cols(
+  channelGrouping = col_character(),
+  date = col_date(format = '%Y%m%d'),
+  device = col_character(),
+  fullVisitorId = col_character(),
+  geoNetwork = col_character(),
+  sessionId = col_character(),
+  socialEngagementType = col_character(),
+  totals = col_character(),
+  trafficSource = col_character(),
+  visitId = col_character(),
+  visitNumber = col_double(),
+  visitStartTime = col_number()
+)
+```
+
+```{r}
+train <- read_csv("train.csv", col_types = cols_train)
+test <- read_csv("test.csv", col_types = cols_test)
+```
+
+
+```{r}
+jsontodf <- function(col){
+    list.stack(lapply(col, function(j){
+    as.list(unlist(fromJSON(j)))}) , fill=TRUE)   
+}
+```
+
+```{r}
+device <- jsontodf(train$device)
+write_csv(device, "device.csv")
+```
+
+```{r}
+geoNetwork <- jsontodf(train$geoNetwork)
+write_csv(geoNetwork, "geoNetwork.csv")
+```
+
+```{r}
+totals <- jsontodf(train$totals)
+write_csv(totals, "totals.csv")
+```
+
+```{r}
+trafficSource <- jsontodf(train$trafficSource)
+write_csv(trafficSource, "trafficSource.csv")
+```
+
+```{r}
+train <- data.frame(train, device, geoNetwork, totals, trafficSource) %>%
+    select(-device, -geoNetwork, -totals, -trafficSource)
+write_csv(train, "d_train.csv")
+```
+
+
+```{r}
+test <- read_csv("test.csv")
+```
+
+```{r}
+device_test <- jsontodf(test$device)
+write_csv(device_test, "device_test.csv")
+```
+
+```{r}
+geoNetwork_test <- jsontodf(test$geoNetwork)
+write_csv(geoNetwork_test, "geoNetwork_test.csv")
+```
+
+```{r}
+totals_test <- jsontodf(test$totals)
+write_csv(totals_test, "totals_test.csv")
+```
+
+```{r}
+trafficSource_test <- jsontodf(test$trafficSource)
+write_csv(trafficSource_test, "trafficSource_test.csv")
+```
+
+```{r}
+test <- data.frame(test, device_test, geoNetwork_test, totals_test, trafficSource_test) %>%
+    select(-device, -geoNetwork, -totals, -trafficSource)
+write_csv(test, "d_test.csv")
+```
+
+```{r}
+library(sessioninfo)
+session_info()
+```
