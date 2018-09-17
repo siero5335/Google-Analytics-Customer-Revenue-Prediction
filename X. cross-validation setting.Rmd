@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-library("tidyverse"); library("DataExplorer"); library("GGally"); library("irlba"); library("jsonlite"); library("rlist"); library("summarytools")
+library("tidyverse"); library("DataExplorer")
 ```
 
 ```{r}
@@ -37,9 +37,19 @@ rm(base_train, train_device, train_geoNetwork, train_trafficSource, train_totals
 ```
 
 ```{r}
+dftrain$transactionRevenue2 <- dftrain$transactionRevenue
+dftrain$transactionRevenue2[is.na(dftrain$transactionRevenue2)] <- 0
+dftrain$transactionRevenue2[dftrain$transactionRevenue2 > 0.001] <- 1
+```
+
+```{r}
 dftrain$transactionRevenue[is.na(dftrain$transactionRevenue)] <- 1
 ```
 
+```{r}
+dftrain$adwordsClickInfo.criteriaParameters <- NULL
+dftest$adwordsClickInfo.criteriaParameters <- NULL
+```
 
 ```{r}
 dftrain <- dftrain[order(as.Date(dftrain$date, format="%Y/%m/%d")),]
@@ -51,22 +61,36 @@ temp_daycount <- as.data.frame(table(dftrain$date))
 
 ## time-series CV設定
 ```{r}
-dftrainCV1 <- dftrain[1:sum(temp_daycount$Freq[1:121]), ]
-dftrainCV2 <- dftrain[sum(temp_daycount$Freq[1:50]): sum(temp_daycount$Freq[1:172]), ]
-dftrainCV3 <- dftrain[sum(temp_daycount$Freq[1:99]): sum(temp_daycount$Freq[1:221]), ]
-dftrainCV4 <- dftrain[sum(temp_daycount$Freq[1:148]): sum(temp_daycount$Freq[1:270]), ]
-dftrainCV5 <- dftrain[sum(temp_daycount$Freq[1:199]): sum(temp_daycount$Freq[1:321]), ]
+dftrainCV1 <- dftrain[1:sum(temp_daycount$Freq[1:107]), ]
+dftrainCV2 <- dftrain[1: sum(temp_daycount$Freq[1:155]), ]
+dftrainCV3 <- dftrain[1: sum(temp_daycount$Freq[1:207]), ]
+dftrainCV4 <- dftrain[1: sum(temp_daycount$Freq[1:256]), ]
+dftrainCV5 <- dftrain[1: sum(temp_daycount$Freq[1:307]), ]
 
-dftrainRes1 <- dftrain[sum(temp_daycount$Freq[1:121]): sum(temp_daycount$Freq[1:171]), ]
-dftrainRes2 <- dftrain[sum(temp_daycount$Freq[1:172]): sum(temp_daycount$Freq[1:220]), ]
-dftrainRes3 <- dftrain[sum(temp_daycount$Freq[1:221]): sum(temp_daycount$Freq[1:269]), ]
-dftrainRes4 <- dftrain[sum(temp_daycount$Freq[1:270]): sum(temp_daycount$Freq[1:320]), ]
-dftrainRes5 <- dftrain[sum(temp_daycount$Freq[1:321]): sum(temp_daycount$Freq[1:366]), ]
+dftrainRes1 <- dftrain[sum(temp_daycount$Freq[1:121]+1): sum(temp_daycount$Freq[1:171]), ]
+dftrainRes2 <- dftrain[sum(temp_daycount$Freq[1:172]+1): sum(temp_daycount$Freq[1:220]), ]
+dftrainRes3 <- dftrain[sum(temp_daycount$Freq[1:221]+1): sum(temp_daycount$Freq[1:269]), ]
+dftrainRes4 <- dftrain[sum(temp_daycount$Freq[1:270]+1): sum(temp_daycount$Freq[1:320]), ]
+dftrainRes5 <- dftrain[sum(temp_daycount$Freq[1:321]+1): sum(temp_daycount$Freq[1:366]), ]
 ```
 
 とてもエレガントとは言えんがまあいいや…
 きれいな書き方あれば希望。
 
+```{r}
+write_csv(dftrainCV1, "dftrainCV1.csv")
+write_csv(dftrainCV2, "dftrainCV2.csv")
+write_csv(dftrainCV3, "dftrainCV3.csv")
+write_csv(dftrainCV4, "dftrainCV4.csv")
+write_csv(dftrainCV5, "dftrainCV5.csv")
+
+write_csv(dftrainRes1, "dftrainRes1.csv")
+write_csv(dftrainRes2, "dftrainRes2.csv")
+write_csv(dftrainRes3, "dftrainRes3.csv")
+write_csv(dftrainRes4, "dftrainRes4.csv")
+write_csv(dftrainRes5, "dftrainRes5.csv")
+write_csv(dftest, "dftest.csv")
+```
 
 
 
@@ -82,4 +106,4 @@ dftrainRes5 <- dftrain[sum(temp_daycount$Freq[1:321]): sum(temp_daycount$Freq[1:
 
 
 
-
+f
