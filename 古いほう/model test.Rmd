@@ -1,0 +1,584 @@
+---
+title: "Untitled"
+author: "Eguchi"
+date: "2018/9/16"
+output: html_document
+---
+
+```{r}
+library("tidyverse"); library("DataExplorer"); library("GGally"); library("irlba"); library("summarytools");
+library("lightgbm"); library("lubridate"); library("magrittr"); library("caret"); library("Metrics"); library("e1071")
+```
+
+
+```{r}
+dftrainCV5 <- read_csv("dftrainCV5.csv", na = c(NA, "not available in demo dataset", "(not set)"))
+dftrainRes5 <- read_csv("dftrainRes5.csv", na = c(NA, "not available in demo dataset", "(not set)"))
+dftest <- read_csv("dftest.csv", na = c(NA, "not available in demo dataset", "(not set)"))
+```
+
+
+```{r}
+id <- dftest[, "fullVisitorId"]
+
+dftrainCV5$transactionRevenue <- log(dftrainCV5$transactionRevenue)
+dftrainRes5$transactionRevenue <- log(dftrainRes5$transactionRevenue)
+
+dftrainCV5 <- dftrainCV5[, -which(colMeans(is.na(dftrainCV5)) > 0.9)]
+dftrainRes5 <- dftrainRes5[, -which(colMeans(is.na(dftrainRes5)) > 0.9)]
+dftest <- dftest[, -which(colMeans(is.na(dftest)) > 0.9)]
+
+dftrainCV5[is.na(dftrainCV5)] <- "Nodata"
+dftrainRes5[is.na(dftrainRes5)] <- "Nodata"
+dftest[is.na(dftest)] <- "Nodata"
+```
+
+```{r}
+grp_mean <- function(x, grp) ave(x, grp, FUN = function(x) mean(x, na.rm = TRUE))
+grp_sd <- function(x, grp) ave(x, grp, FUN = function(x) sd(x, na.rm = TRUE))
+grp_skewness <- function(x, grp) ave(x, grp, FUN = function(x) skewness(x, na.rm = TRUE))
+grp_kurtosis <- function(x, grp) ave(x, grp, FUN = function(x) kurtosis(x, na.rm = TRUE))
+grp_sum <- function(x, grp) ave(x, grp, FUN = function(x) sum(x, na.rm = TRUE))
+grp_max <- function(x, grp) ave(x, grp, FUN = function(x) max(x, na.rm = TRUE))
+grp_min <- function(x, grp) ave(x, grp, FUN = function(x) min(x, na.rm = TRUE))
+
+dftrainCV5 <- dftrainCV5 %>% 
+  mutate(date = ymd(date),
+         year = year(date),
+         month = month(date),
+         day = day(date)) %>%
+  mutate_if(is.character, funs(factor(.) %>% as.integer)) %>% 
+  mutate_if(is.logical, funs(factor(.) %>% as.integer)) %>% 
+  mutate(pageviews_mean_vn = grp_mean(pageviews, visitNumber),
+         hits_mean_vn = grp_mean(hits, visitNumber),
+         pageviews_mean_country = grp_mean(pageviews, country),
+         hits_mean_country = grp_mean(hits, country),
+         pageviews_mean_chan = grp_mean(pageviews, channelGrouping),
+         hits_mean_chan = grp_mean(hits, channelGrouping),
+         pageviews_mean_ndom = grp_mean(pageviews, networkDomain),
+         hits_mean_ndom = grp_mean(hits, networkDomain),
+         pageviews_mean_day = grp_mean(pageviews, day),
+         hits_mean_day = grp_mean(hits, day),
+         pageviews_mean_metro = grp_mean(pageviews, metro),
+         hits_mean_metro = grp_mean(hits, metro),
+         pageviews_mean_city = grp_mean(pageviews, city),
+         hits_mean_city = grp_mean(hits, city),
+         pageviews_mean_cont = grp_mean(pageviews, continent),
+         hits_mean_cont = grp_mean(hits, continent),
+         pageviews_mean_browser = grp_mean(pageviews, browser),
+         hits_mean_browser = grp_mean(hits, browser),
+         
+         pageviews_sd_vn = grp_sd(pageviews, visitNumber),
+         hits_sd_vn = grp_sd(hits, visitNumber),
+         pageviews_sd_country = grp_sd(pageviews, country),
+         hits_sd_country = grp_sd(hits, country),
+         pageviews_sd_chan = grp_sd(pageviews, channelGrouping),
+         hits_sd_chan = grp_sd(hits, channelGrouping),
+         pageviews_sd_ndom = grp_sd(pageviews, networkDomain),
+         hits_sd_ndom = grp_sd(hits, networkDomain),
+         pageviews_sd_day = grp_sd(pageviews, day),
+         hits_sd_day = grp_sd(hits, day),
+         pageviews_sd_metro = grp_sd(pageviews, metro),
+         hits_sd_metro = grp_sd(hits, metro),
+         pageviews_sd_city = grp_sd(pageviews, city),
+         hits_sd_city = grp_sd(hits, city),
+         pageviews_sd_cont = grp_sd(pageviews, continent),
+         hits_sd_cont = grp_sd(hits, continent),
+         pageviews_sd_browser = grp_sd(pageviews, browser),
+         hits_sd_browser = grp_sd(hits, browser),
+         
+         pageviews_skewness_vn = grp_skewness(pageviews, visitNumber),
+         hits_skewness_vn = grp_skewness(hits, visitNumber),
+         pageviews_skewness_country = grp_skewness(pageviews, country),
+         hits_skewness_country = grp_skewness(hits, country),
+         pageviews_skewness_chan = grp_skewness(pageviews, channelGrouping),
+         hits_skewness_chan = grp_skewness(hits, channelGrouping),
+         pageviews_skewness_ndom = grp_skewness(pageviews, networkDomain),
+         hits_skewness_ndom = grp_skewness(hits, networkDomain),
+         pageviews_skewness_day = grp_skewness(pageviews, day),
+         hits_skewness_day = grp_skewness(hits, day),
+         pageviews_skewness_metro = grp_skewness(pageviews, metro),
+         hits_skewness_metro = grp_skewness(hits, metro),
+         pageviews_skewness_city = grp_skewness(pageviews, city),
+         hits_skewness_city = grp_skewness(hits, city),
+         pageviews_skewness_cont = grp_skewness(pageviews, continent),
+         hits_skewness_cont = grp_skewness(hits, continent),
+         pageviews_skewness_browser = grp_skewness(pageviews, browser),
+         hits_skewness_browser = grp_skewness(hits, browser),
+         
+         pageviews_kurtosis_vn = grp_kurtosis(pageviews, visitNumber),
+         hits_kurtosis_vn = grp_kurtosis(hits, visitNumber),
+         pageviews_kurtosis_country = grp_kurtosis(pageviews, country),
+         hits_kurtosis_country = grp_kurtosis(hits, country),
+         pageviews_kurtosis_chan = grp_kurtosis(pageviews, channelGrouping),
+         hits_kurtosis_chan = grp_kurtosis(hits, channelGrouping),
+         pageviews_kurtosis_ndom = grp_kurtosis(pageviews, networkDomain),
+         hits_kurtosis_ndom = grp_kurtosis(hits, networkDomain),
+         pageviews_kurtosis_day = grp_kurtosis(pageviews, day),
+         hits_kurtosis_day = grp_kurtosis(hits, day),
+         pageviews_kurtosis_metro = grp_kurtosis(pageviews, metro),
+         hits_kurtosis_metro = grp_kurtosis(hits, metro),
+         pageviews_kurtosis_city = grp_kurtosis(pageviews, city),
+         hits_kurtosis_city = grp_kurtosis(hits, city),
+         pageviews_kurtosis_cont = grp_kurtosis(pageviews, continent),
+         hits_kurtosis_cont = grp_kurtosis(hits, continent),
+         pageviews_kurtosis_browser = grp_kurtosis(pageviews, browser),
+         hits_kurtosis_browser = grp_kurtosis(hits, browser),
+         
+         pageviews_sum_vn = grp_sum(pageviews, visitNumber),
+         hits_sum_vn = grp_sum(hits, visitNumber),
+         pageviews_sum_country = grp_sum(pageviews, country),
+         hits_sum_country = grp_sum(hits, country),
+         pageviews_sum_chan = grp_sum(pageviews, channelGrouping),
+         hits_sum_chan = grp_sum(hits, channelGrouping),
+         pageviews_sum_ndom = grp_sum(pageviews, networkDomain),
+         hits_sum_ndom = grp_sum(hits, networkDomain),
+         pageviews_sum_day = grp_sum(pageviews, day),
+         hits_sum_day = grp_sum(hits, day),
+         pageviews_sum_metro = grp_sum(pageviews, metro),
+         hits_sum_metro = grp_sum(hits, metro),
+         pageviews_sum_city = grp_sum(pageviews, city),
+         hits_sum_city = grp_sum(hits, city),
+         pageviews_sum_cont = grp_sum(pageviews, continent),
+         hits_sum_cont = grp_sum(hits, continent),
+         pageviews_sum_browser = grp_sum(pageviews, browser),
+         hits_sum_browser = grp_sum(hits, browser),
+         
+         pageviews_max_vn = grp_max(pageviews, visitNumber),
+         hits_max_vn = grp_max(hits, visitNumber),
+         pageviews_max_country = grp_max(pageviews, country),
+         hits_max_country = grp_max(hits, country),
+         pageviews_max_chan = grp_max(pageviews, channelGrouping),
+         hits_max_chan = grp_max(hits, channelGrouping),
+         pageviews_max_ndom = grp_max(pageviews, networkDomain),
+         hits_max_ndom = grp_max(hits, networkDomain),
+         pageviews_max_day = grp_max(pageviews, day),
+         hits_max_day = grp_max(hits, day),
+         pageviews_max_metro = grp_max(pageviews, metro),
+         hits_max_metro = grp_max(hits, metro),
+         pageviews_max_city = grp_max(pageviews, city),
+         hits_max_city = grp_max(hits, city),
+         pageviews_max_cont = grp_max(pageviews, continent),
+         hits_max_cont = grp_max(hits, continent),
+         pageviews_max_browser = grp_max(pageviews, browser),
+         hits_max_browser = grp_max(hits, browser),
+         bounces_max_fullVisitorId = grp_max(bounces, fullVisitorId),
+         
+         pageviews_min_vn = grp_min(pageviews, visitNumber),
+         hits_min_vn = grp_min(hits, visitNumber),
+         pageviews_min_country = grp_min(pageviews, country),
+         hits_min_country = grp_min(hits, country),
+         pageviews_min_chan = grp_min(pageviews, channelGrouping),
+         hits_min_chan = grp_min(hits, channelGrouping),
+         pageviews_min_ndom = grp_min(pageviews, networkDomain),
+         hits_min_ndom = grp_min(hits, networkDomain),
+         pageviews_min_day = grp_min(pageviews, day),
+         hits_min_day = grp_min(hits, day),
+         pageviews_min_metro = grp_min(pageviews, metro),
+         hits_min_metro = grp_min(hits, metro),
+         pageviews_min_city = grp_min(pageviews, city),
+         hits_min_city = grp_min(hits, city),
+         pageviews_min_cont = grp_min(pageviews, continent),
+         hits_min_cont = grp_min(hits, continent),
+         pageviews_min_browser = grp_min(pageviews, browser),
+         hits_min_browser = grp_min(hits, browser))
+
+dftrainRes5 <- dftrainRes5  %>% 
+  mutate(date = ymd(date),
+         year = year(date),
+         month = month(date),
+         day = day(date)) %>%
+  mutate_if(is.character, funs(factor(.) %>% as.integer)) %>% 
+  mutate_if(is.logical, funs(factor(.) %>% as.integer)) %>% 
+  mutate(pageviews_mean_vn = grp_mean(pageviews, visitNumber),
+         hits_mean_vn = grp_mean(hits, visitNumber),
+         pageviews_mean_country = grp_mean(pageviews, country),
+         hits_mean_country = grp_mean(hits, country),
+         pageviews_mean_chan = grp_mean(pageviews, channelGrouping),
+         hits_mean_chan = grp_mean(hits, channelGrouping),
+         pageviews_mean_ndom = grp_mean(pageviews, networkDomain),
+         hits_mean_ndom = grp_mean(hits, networkDomain),
+         pageviews_mean_day = grp_mean(pageviews, day),
+         hits_mean_day = grp_mean(hits, day),
+         pageviews_mean_metro = grp_mean(pageviews, metro),
+         hits_mean_metro = grp_mean(hits, metro),
+         pageviews_mean_city = grp_mean(pageviews, city),
+         hits_mean_city = grp_mean(hits, city),
+         pageviews_mean_cont = grp_mean(pageviews, continent),
+         hits_mean_cont = grp_mean(hits, continent),
+         pageviews_mean_browser = grp_mean(pageviews, browser),
+         hits_mean_browser = grp_mean(hits, browser),
+         
+         pageviews_sd_vn = grp_sd(pageviews, visitNumber),
+         hits_sd_vn = grp_sd(hits, visitNumber),
+         pageviews_sd_country = grp_sd(pageviews, country),
+         hits_sd_country = grp_sd(hits, country),
+         pageviews_sd_chan = grp_sd(pageviews, channelGrouping),
+         hits_sd_chan = grp_sd(hits, channelGrouping),
+         pageviews_sd_ndom = grp_sd(pageviews, networkDomain),
+         hits_sd_ndom = grp_sd(hits, networkDomain),
+         pageviews_sd_day = grp_sd(pageviews, day),
+         hits_sd_day = grp_sd(hits, day),
+         pageviews_sd_metro = grp_sd(pageviews, metro),
+         hits_sd_metro = grp_sd(hits, metro),
+         pageviews_sd_city = grp_sd(pageviews, city),
+         hits_sd_city = grp_sd(hits, city),
+         pageviews_sd_cont = grp_sd(pageviews, continent),
+         hits_sd_cont = grp_sd(hits, continent),
+         pageviews_sd_browser = grp_sd(pageviews, browser),
+         hits_sd_browser = grp_sd(hits, browser),
+         
+         pageviews_skewness_vn = grp_skewness(pageviews, visitNumber),
+         hits_skewness_vn = grp_skewness(hits, visitNumber),
+         pageviews_skewness_country = grp_skewness(pageviews, country),
+         hits_skewness_country = grp_skewness(hits, country),
+         pageviews_skewness_chan = grp_skewness(pageviews, channelGrouping),
+         hits_skewness_chan = grp_skewness(hits, channelGrouping),
+         pageviews_skewness_ndom = grp_skewness(pageviews, networkDomain),
+         hits_skewness_ndom = grp_skewness(hits, networkDomain),
+         pageviews_skewness_day = grp_skewness(pageviews, day),
+         hits_skewness_day = grp_skewness(hits, day),
+         pageviews_skewness_metro = grp_skewness(pageviews, metro),
+         hits_skewness_metro = grp_skewness(hits, metro),
+         pageviews_skewness_city = grp_skewness(pageviews, city),
+         hits_skewness_city = grp_skewness(hits, city),
+         pageviews_skewness_cont = grp_skewness(pageviews, continent),
+         hits_skewness_cont = grp_skewness(hits, continent),
+         pageviews_skewness_browser = grp_skewness(pageviews, browser),
+         hits_skewness_browser = grp_skewness(hits, browser),
+         
+         pageviews_kurtosis_vn = grp_kurtosis(pageviews, visitNumber),
+         hits_kurtosis_vn = grp_kurtosis(hits, visitNumber),
+         pageviews_kurtosis_country = grp_kurtosis(pageviews, country),
+         hits_kurtosis_country = grp_kurtosis(hits, country),
+         pageviews_kurtosis_chan = grp_kurtosis(pageviews, channelGrouping),
+         hits_kurtosis_chan = grp_kurtosis(hits, channelGrouping),
+         pageviews_kurtosis_ndom = grp_kurtosis(pageviews, networkDomain),
+         hits_kurtosis_ndom = grp_kurtosis(hits, networkDomain),
+         pageviews_kurtosis_day = grp_kurtosis(pageviews, day),
+         hits_kurtosis_day = grp_kurtosis(hits, day),
+         pageviews_kurtosis_metro = grp_kurtosis(pageviews, metro),
+         hits_kurtosis_metro = grp_kurtosis(hits, metro),
+         pageviews_kurtosis_city = grp_kurtosis(pageviews, city),
+         hits_kurtosis_city = grp_kurtosis(hits, city),
+         pageviews_kurtosis_cont = grp_kurtosis(pageviews, continent),
+         hits_kurtosis_cont = grp_kurtosis(hits, continent),
+         pageviews_kurtosis_browser = grp_kurtosis(pageviews, browser),
+         hits_kurtosis_browser = grp_kurtosis(hits, browser),
+         
+         pageviews_sum_vn = grp_sum(pageviews, visitNumber),
+         hits_sum_vn = grp_sum(hits, visitNumber),
+         pageviews_sum_country = grp_sum(pageviews, country),
+         hits_sum_country = grp_sum(hits, country),
+         pageviews_sum_chan = grp_sum(pageviews, channelGrouping),
+         hits_sum_chan = grp_sum(hits, channelGrouping),
+         pageviews_sum_ndom = grp_sum(pageviews, networkDomain),
+         hits_sum_ndom = grp_sum(hits, networkDomain),
+         pageviews_sum_day = grp_sum(pageviews, day),
+         hits_sum_day = grp_sum(hits, day),
+         pageviews_sum_metro = grp_sum(pageviews, metro),
+         hits_sum_metro = grp_sum(hits, metro),
+         pageviews_sum_city = grp_sum(pageviews, city),
+         hits_sum_city = grp_sum(hits, city),
+         pageviews_sum_cont = grp_sum(pageviews, continent),
+         hits_sum_cont = grp_sum(hits, continent),
+         pageviews_sum_browser = grp_sum(pageviews, browser),
+         hits_sum_browser = grp_sum(hits, browser),
+         
+         pageviews_max_vn = grp_max(pageviews, visitNumber),
+         hits_max_vn = grp_max(hits, visitNumber),
+         pageviews_max_country = grp_max(pageviews, country),
+         hits_max_country = grp_max(hits, country),
+         pageviews_max_chan = grp_max(pageviews, channelGrouping),
+         hits_max_chan = grp_max(hits, channelGrouping),
+         pageviews_max_ndom = grp_max(pageviews, networkDomain),
+         hits_max_ndom = grp_max(hits, networkDomain),
+         pageviews_max_day = grp_max(pageviews, day),
+         hits_max_day = grp_max(hits, day),
+         pageviews_max_metro = grp_max(pageviews, metro),
+         hits_max_metro = grp_max(hits, metro),
+         pageviews_max_city = grp_max(pageviews, city),
+         hits_max_city = grp_max(hits, city),
+         pageviews_max_cont = grp_max(pageviews, continent),
+         hits_max_cont = grp_max(hits, continent),
+         pageviews_max_browser = grp_max(pageviews, browser),
+         hits_max_browser = grp_max(hits, browser),
+         bounces_max_fullVisitorId = grp_max(bounces, fullVisitorId),
+         
+         pageviews_min_vn = grp_min(pageviews, visitNumber),
+         hits_min_vn = grp_min(hits, visitNumber),
+         pageviews_min_country = grp_min(pageviews, country),
+         hits_min_country = grp_min(hits, country),
+         pageviews_min_chan = grp_min(pageviews, channelGrouping),
+         hits_min_chan = grp_min(hits, channelGrouping),
+         pageviews_min_ndom = grp_min(pageviews, networkDomain),
+         hits_min_ndom = grp_min(hits, networkDomain),
+         pageviews_min_day = grp_min(pageviews, day),
+         hits_min_day = grp_min(hits, day),
+         pageviews_min_metro = grp_min(pageviews, metro),
+         hits_min_metro = grp_min(hits, metro),
+         pageviews_min_city = grp_min(pageviews, city),
+         hits_min_city = grp_min(hits, city),
+         pageviews_min_cont = grp_min(pageviews, continent),
+         hits_min_cont = grp_min(hits, continent),
+         pageviews_min_browser = grp_min(pageviews, browser),
+         hits_min_browser = grp_min(hits, browser))
+
+dftest <- dftest %>%
+  mutate(date = ymd(date),
+         year = year(date),
+         month = month(date),
+         day = day(date)) %>%
+  mutate_if(is.character, funs(factor(.) %>% as.integer)) %>% 
+  mutate_if(is.logical, funs(factor(.) %>% as.integer)) %>% 
+   mutate(pageviews_mean_vn = grp_mean(pageviews, visitNumber),
+         hits_mean_vn = grp_mean(hits, visitNumber),
+         pageviews_mean_country = grp_mean(pageviews, country),
+         hits_mean_country = grp_mean(hits, country),
+         pageviews_mean_chan = grp_mean(pageviews, channelGrouping),
+         hits_mean_chan = grp_mean(hits, channelGrouping),
+         pageviews_mean_ndom = grp_mean(pageviews, networkDomain),
+         hits_mean_ndom = grp_mean(hits, networkDomain),
+         pageviews_mean_day = grp_mean(pageviews, day),
+         hits_mean_day = grp_mean(hits, day),
+         pageviews_mean_metro = grp_mean(pageviews, metro),
+         hits_mean_metro = grp_mean(hits, metro),
+         pageviews_mean_city = grp_mean(pageviews, city),
+         hits_mean_city = grp_mean(hits, city),
+         pageviews_mean_cont = grp_mean(pageviews, continent),
+         hits_mean_cont = grp_mean(hits, continent),
+         pageviews_mean_browser = grp_mean(pageviews, browser),
+         hits_mean_browser = grp_mean(hits, browser),
+         
+         pageviews_sd_vn = grp_sd(pageviews, visitNumber),
+         hits_sd_vn = grp_sd(hits, visitNumber),
+         pageviews_sd_country = grp_sd(pageviews, country),
+         hits_sd_country = grp_sd(hits, country),
+         pageviews_sd_chan = grp_sd(pageviews, channelGrouping),
+         hits_sd_chan = grp_sd(hits, channelGrouping),
+         pageviews_sd_ndom = grp_sd(pageviews, networkDomain),
+         hits_sd_ndom = grp_sd(hits, networkDomain),
+         pageviews_sd_day = grp_sd(pageviews, day),
+         hits_sd_day = grp_sd(hits, day),
+         pageviews_sd_metro = grp_sd(pageviews, metro),
+         hits_sd_metro = grp_sd(hits, metro),
+         pageviews_sd_city = grp_sd(pageviews, city),
+         hits_sd_city = grp_sd(hits, city),
+         pageviews_sd_cont = grp_sd(pageviews, continent),
+         hits_sd_cont = grp_sd(hits, continent),
+         pageviews_sd_browser = grp_sd(pageviews, browser),
+         hits_sd_browser = grp_sd(hits, browser),
+         
+         pageviews_skewness_vn = grp_skewness(pageviews, visitNumber),
+         hits_skewness_vn = grp_skewness(hits, visitNumber),
+         pageviews_skewness_country = grp_skewness(pageviews, country),
+         hits_skewness_country = grp_skewness(hits, country),
+         pageviews_skewness_chan = grp_skewness(pageviews, channelGrouping),
+         hits_skewness_chan = grp_skewness(hits, channelGrouping),
+         pageviews_skewness_ndom = grp_skewness(pageviews, networkDomain),
+         hits_skewness_ndom = grp_skewness(hits, networkDomain),
+         pageviews_skewness_day = grp_skewness(pageviews, day),
+         hits_skewness_day = grp_skewness(hits, day),
+         pageviews_skewness_metro = grp_skewness(pageviews, metro),
+         hits_skewness_metro = grp_skewness(hits, metro),
+         pageviews_skewness_city = grp_skewness(pageviews, city),
+         hits_skewness_city = grp_skewness(hits, city),
+         pageviews_skewness_cont = grp_skewness(pageviews, continent),
+         hits_skewness_cont = grp_skewness(hits, continent),
+         pageviews_skewness_browser = grp_skewness(pageviews, browser),
+         hits_skewness_browser = grp_skewness(hits, browser),
+         
+         pageviews_kurtosis_vn = grp_kurtosis(pageviews, visitNumber),
+         hits_kurtosis_vn = grp_kurtosis(hits, visitNumber),
+         pageviews_kurtosis_country = grp_kurtosis(pageviews, country),
+         hits_kurtosis_country = grp_kurtosis(hits, country),
+         pageviews_kurtosis_chan = grp_kurtosis(pageviews, channelGrouping),
+         hits_kurtosis_chan = grp_kurtosis(hits, channelGrouping),
+         pageviews_kurtosis_ndom = grp_kurtosis(pageviews, networkDomain),
+         hits_kurtosis_ndom = grp_kurtosis(hits, networkDomain),
+         pageviews_kurtosis_day = grp_kurtosis(pageviews, day),
+         hits_kurtosis_day = grp_kurtosis(hits, day),
+         pageviews_kurtosis_metro = grp_kurtosis(pageviews, metro),
+         hits_kurtosis_metro = grp_kurtosis(hits, metro),
+         pageviews_kurtosis_city = grp_kurtosis(pageviews, city),
+         hits_kurtosis_city = grp_kurtosis(hits, city),
+         pageviews_kurtosis_cont = grp_kurtosis(pageviews, continent),
+         hits_kurtosis_cont = grp_kurtosis(hits, continent),
+         pageviews_kurtosis_browser = grp_kurtosis(pageviews, browser),
+         hits_kurtosis_browser = grp_kurtosis(hits, browser),
+         
+         pageviews_sum_vn = grp_sum(pageviews, visitNumber),
+         hits_sum_vn = grp_sum(hits, visitNumber),
+         pageviews_sum_country = grp_sum(pageviews, country),
+         hits_sum_country = grp_sum(hits, country),
+         pageviews_sum_chan = grp_sum(pageviews, channelGrouping),
+         hits_sum_chan = grp_sum(hits, channelGrouping),
+         pageviews_sum_ndom = grp_sum(pageviews, networkDomain),
+         hits_sum_ndom = grp_sum(hits, networkDomain),
+         pageviews_sum_day = grp_sum(pageviews, day),
+         hits_sum_day = grp_sum(hits, day),
+         pageviews_sum_metro = grp_sum(pageviews, metro),
+         hits_sum_metro = grp_sum(hits, metro),
+         pageviews_sum_city = grp_sum(pageviews, city),
+         hits_sum_city = grp_sum(hits, city),
+         pageviews_sum_cont = grp_sum(pageviews, continent),
+         hits_sum_cont = grp_sum(hits, continent),
+         pageviews_sum_browser = grp_sum(pageviews, browser),
+         hits_sum_browser = grp_sum(hits, browser),
+         
+         pageviews_max_vn = grp_max(pageviews, visitNumber),
+         hits_max_vn = grp_max(hits, visitNumber),
+         pageviews_max_country = grp_max(pageviews, country),
+         hits_max_country = grp_max(hits, country),
+         pageviews_max_chan = grp_max(pageviews, channelGrouping),
+         hits_max_chan = grp_max(hits, channelGrouping),
+         pageviews_max_ndom = grp_max(pageviews, networkDomain),
+         hits_max_ndom = grp_max(hits, networkDomain),
+         pageviews_max_day = grp_max(pageviews, day),
+         hits_max_day = grp_max(hits, day),
+         pageviews_max_metro = grp_max(pageviews, metro),
+         hits_max_metro = grp_max(hits, metro),
+         pageviews_max_city = grp_max(pageviews, city),
+         hits_max_city = grp_max(hits, city),
+         pageviews_max_cont = grp_max(pageviews, continent),
+         hits_max_cont = grp_max(hits, continent),
+         pageviews_max_browser = grp_max(pageviews, browser),
+         hits_max_browser = grp_max(hits, browser),
+         bounces_max_fullVisitorId = grp_max(bounces, fullVisitorId),
+         
+         pageviews_min_vn = grp_min(pageviews, visitNumber),
+         hits_min_vn = grp_min(hits, visitNumber),
+         pageviews_min_country = grp_min(pageviews, country),
+         hits_min_country = grp_min(hits, country),
+         pageviews_min_chan = grp_min(pageviews, channelGrouping),
+         hits_min_chan = grp_min(hits, channelGrouping),
+         pageviews_min_ndom = grp_min(pageviews, networkDomain),
+         hits_min_ndom = grp_min(hits, networkDomain),
+         pageviews_min_day = grp_min(pageviews, day),
+         hits_min_day = grp_min(hits, day),
+         pageviews_min_metro = grp_min(pageviews, metro),
+         hits_min_metro = grp_min(hits, metro),
+         pageviews_min_city = grp_min(pageviews, city),
+         hits_min_city = grp_min(hits, city),
+         pageviews_min_cont = grp_min(pageviews, continent),
+         hits_min_cont = grp_min(hits, continent),
+         pageviews_min_browser = grp_min(pageviews, browser),
+         hits_min_browser = grp_min(hits, browser))
+```
+
+```{r}
+nzv_cols1 <- nearZeroVar(dftrainCV5)
+nzv_cols2 <- nearZeroVar(dftrainRes5)
+nzv_cols3 <- nearZeroVar(dftest)
+```
+
+```{r}
+a <- colnames(dftrainCV5[nzv_cols1])
+
+b <- colnames(dftrainRes5[nzv_cols2])
+
+c <- colnames(dftest[nzv_cols3])
+
+rem <- intersect(a, b)
+intersect(a, c)
+intersect(b, c)
+rem <- rem[-c(3, 4)]
+```
+
+```{r}
+dftrainCV5 <- dftrainCV5 %>% select(-rem)
+dftrainRes5 <- dftrainRes5 %>% select(-rem)
+dftest <- dftest%>% select(-rem)
+
+dftrainCV5$year <- NULL
+dftrainRes5$year <- NULL
+dftest$year <- NULL
+gc(); gc()
+```
+
+```{r}
+categori = colnames(dftrainCV5 %>% select(country, isTrueDirect, browser, operatingSystem, isMobile, deviceCategory, channelGrouping, day, month))
+
+params <- list(objective = "regression_l2", 
+               boosting_type = "gbdt",
+               metric="rmse",
+               learning_rate = 0.02,
+               num_leaves = 512,
+               max_bin = 255, 
+               max_depth = -1,
+               feature_fraction = 0.9,
+               bagging_fraction = 0.8,
+               min_sum_hessian_in_leaf = 50)
+```
+
+```{r}
+#model1
+set.seed(71)
+X1 <- lgb.Dataset(data.matrix(dftrainCV5 %>% select(-transactionRevenue, -date, -fullVisitorId, -visitId, -sessionId, -transactionRevenue2)), 
+                  label = as.numeric(dftrainCV5$transactionRevenue))
+
+evalX1 <-  lgb.Dataset(data.matrix(dftrainRes5 %>% select(-transactionRevenue, -date, -fullVisitorId, -visitId, -sessionId, -transactionRevenue2)), 
+                       label = as.numeric(dftrainRes5$transactionRevenue))
+
+model1_1 <- lgb.train(data = X1, valids = list(eval = evalX1), params = params, categorical_feature = categori,
+                      nrounds = 15000, early_stopping_rounds = 300, eval_freq = 50)
+```
+
+```{r}
+pred <- predict(model1_1, data.matrix(dftrainRes5 %>% select(-transactionRevenue, -transactionRevenue2, -date, -fullVisitorId, -visitId, -sessionId)), n = model1_1$best_iter) 
+```
+
+```{r}
+summary(pred)
+```
+
+```{r}
+pred[pred < 0] <- 0
+summary(dftrainRes5$transactionRevenue)
+```
+
+```{r}
+RMSE(pred, dftrainRes5$transactionRevenue)
+```
+
+
+```{r}
+# Importance Plot
+lgb.importance(model1_1, percentage = TRUE) %>% head(20) %>% kable()
+```
+
+```{r}
+tree_imp <- lgb.importance(model1_1, percentage = TRUE) %>% head(30)
+lgb.plot.importance(tree_imp, measure = "Gain")
+```
+
+
+```{r}
+pred_res <- predict(model1_1, data.matrix(dftest %>% select(-date, -fullVisitorId, -visitId, -sessionId)), n = model1_1$best_iter) 
+```
+
+```{r}
+summary(pred_res)
+```
+
+```{r}
+res <- pred_res   %>% 
+  as_tibble() %>% 
+  set_names("y") %>% 
+  mutate(y = expm1(y)) %>% 
+  mutate(y = ifelse(y < 0, 0, y)) %>% 
+  bind_cols(id) %>% 
+  group_by(fullVisitorId) %>% 
+  summarise(y = log1p(sum(y)))
+```
+
+```{r}
+read_csv("sample_submission.csv") %>%  
+  left_join(res, by = "fullVisitorId") %>% 
+  mutate(PredictedLogRevenue = round(y, 5)) %>% 
+  select(-y) %>% 
+  write_csv(paste0("tidy_lightGBM_", round(model1_1$best_score, 5), ".csv"))
+```
+
+
+

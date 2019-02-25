@@ -1,0 +1,424 @@
+---
+title: "EDA-Cleaning"
+author: "Eguchi"
+date: "2018/9/15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse"); library("DataExplorer"); library("GGally"); library("irlba"); library("jsonlite"); library("rlist"); library("summarytools")
+```
+
+## Base data
+```{r}
+cols_train <- cols(
+  channelGrouping = col_character(),
+  date = col_date(format = '%Y%m%d'),
+  device = col_character(),
+  fullVisitorId = col_character(),
+  geoNetwork = col_character(),
+  sessionId = col_character(),
+  socialEngagementType = col_character(),
+  totals = col_character(),
+  trafficSource = col_character(),
+  visitId = col_character(),
+  visitNumber = col_double(),
+  visitStartTime = col_number()
+)
+
+cols_test <- cols(
+  channelGrouping = col_character(),
+  date = col_date(format = '%Y%m%d'),
+  device = col_character(),
+  fullVisitorId = col_character(),
+  geoNetwork = col_character(),
+  sessionId = col_character(),
+  socialEngagementType = col_character(),
+  totals = col_character(),
+  trafficSource = col_character(),
+  visitId = col_character(),
+  visitNumber = col_double(),
+  visitStartTime = col_number()
+)
+```
+
+```{r}
+train <- read_csv("train.csv", col_types = cols_train)
+test <- read_csv("test.csv", col_types = cols_test)
+```
+
+```{r}
+base_train <- train %>%
+    select(-device, -geoNetwork, -totals, -trafficSource)
+
+base_test <- test %>%
+    select(-device, -geoNetwork, -totals, -trafficSource)
+```
+
+```{r}
+plot_str(base_train)
+```
+
+```{r}
+plot_str(base_test)
+```
+
+
+```{r}
+dfSummary(base_train)
+```
+
+
+
+```{r}
+dfSummary(base_test)
+```
+
+```{r}
+view(dfSummary(base_train))
+view(dfSummary(base_test))
+```
+
+```{r}
+plot_bar(base_train)
+```
+
+
+```{r}
+plot_bar(base_test)
+```
+
+```{r}
+plot_histogram(base_test)
+```
+
+```{r}
+plot_histogram(base_test)
+```
+
+1    channelGroupingの分布、概ね一緒とも言えるが4. Display, 8. Socialの割合はかなり違うので特徴が効いてきそうなら気をつける。  SocialとDirect順位入れ替わってるし。
+
+2    dateからこれは時系列データであり、未来の値を予測するものであることがわかる。おそらく時系列に関連する特徴を作る必要がある。
+
+3    fullVisitorIdをみると、同じIDの人が一定以上の割合でいることがわかる。train, testで重複する人がいるかも。
+
+4    sessionIdは2つづつ。VisitorIdと組み合わせてgroup_byすると良いかも？
+
+5    socialEngagementType 全員おんなじっぽいので落とす？testもだし。
+
+6    visitId    これも大体何個かづつある。fullVisitorIdとかと組み合わせて特徴つくるか？しかしtrainとtestで全然数字が違うなこれ。時系列っぽいなにかなのか？
+
+7    visitNumber 有意差こそつきそうだけどそれほど大きな差ではない数値変数。ほとんどのひとは最小値の1。
+
+8    visitStartTime train: 1470034812 < 1483948934 < 1501657193, test: 1501657203 < 1513125069 < 1525157818 
+
+~ID系はユニークカウントかどうかの特徴は入れたほうが良いかも。ヒストグラムが死ぬほど偏ってる。
+dataは割と均一な感じだが山があるとおろは確認しておく。
+いずれも欠測値はない。
+
+
+```{r}
+write_csv(base_train, "base_train.csv")
+write_csv(base_test, "base_test.csv")
+
+rm(train, test, cols_train, cols_test, base_train, base_test)
+```
+
+
+
+## device
+
+```{r}
+device <- read_csv("device.csv")
+device_test <- read_csv("device_test.csv")
+```
+
+
+```{r}
+plot_str(device)
+```
+
+
+```{r}
+plot_str(device_test)
+```
+
+
+```{r}
+dfSummary(device)
+```
+
+
+```{r}
+dfSummary(device_test)
+```
+
+
+```{r}
+view(dfSummary(device))
+```
+
+```{r}
+view(dfSummary(device_test))
+```
+
+browserVersion, browserSize, operatingSystemVersion, mobileDeviceBranding, mobileDeviceModel, mobileInputSelector, mobileDeviceInfo, mobileDeviceMarketingName, flashVersion, language, screenColors, screenResolutionは情報が無なので捨てる。
+
+```{r}
+device <- device %>% 
+  select(-browserVersion, -browserSize, -operatingSystemVersion, -mobileDeviceBranding, -mobileDeviceModel, -mobileInputSelector, 
+         -mobileDeviceInfo, -mobileDeviceMarketingName, -flashVersion, -language, -screenColors, -screenResolution)
+
+device_test <- device_test %>% 
+  select(-browserVersion, -browserSize, -operatingSystemVersion, -mobileDeviceBranding, -mobileDeviceModel, -mobileInputSelector, 
+         -mobileDeviceInfo, -mobileDeviceMarketingName, -flashVersion, -language, -screenColors, -screenResolution)
+```
+
+
+```{r}
+dfSummary(device)
+```
+
+```{r}
+dfSummary(device_test)
+```
+
+
+```{r}
+plot_bar(device)
+```
+
+
+```{r}
+plot_bar(device_test)
+```
+
+3    isMobileと4    deviceCategoryはだいたい同じという認識でも良いのかも？
+割合はtrain, testでそこそこ違うように見える。予測の際も気をつけたほうが良いのかも。
+
+```{r}
+write_csv(device, "train_device.csv")
+write_csv(device_test, "test_device.csv")
+
+rm(device, device_test)
+```
+
+
+
+
+## Geonetwork
+
+```{r}
+geoNetwork <- read_csv("geoNetwork.csv")
+geoNetwork_test <- read_csv("geoNetwork_test.csv")
+```
+
+
+```{r}
+plot_str(geoNetwork)
+```
+
+
+```{r}
+plot_str(geoNetwork_test)
+```
+
+
+```{r}
+dfSummary(geoNetwork)
+```
+
+
+```{r}
+dfSummary(geoNetwork_test)
+```
+
+
+```{r}
+view(dfSummary(geoNetwork))
+```
+
+```{r}
+view(dfSummary(geoNetwork_test))
+```
+
+cityId, latitude, longitude, networkLocationは情報が無なので捨てる。緯度経度からtimezone取るとか妄想してたが無理だった…。
+
+```{r}
+geoNetwork <- geoNetwork %>% 
+ select(-cityId, -latitude, -longitude, -networkLocation)
+
+geoNetwork_test <- geoNetwork_test %>% 
+ select(-cityId, -latitude, -longitude, -networkLocation)
+```
+
+```{r}
+dfSummary(geoNetwork)
+```
+
+```{r}
+dfSummary(geoNetwork_test)
+```
+
+
+```{r}
+plot_bar(geoNetwork)
+```
+
+
+```{r}
+plot_bar(geoNetwork_test)
+```
+
+やはりtrain, testでそこそこ分布が違うような感じ。サンプリングとか傾向スコアとかでtrain, testの差をある程度丸めても良いのかも。(test側にtrainを寄せていく感じ)
+
+```{r}
+write_csv(geoNetwork, "train_geoNetwork.csv")
+write_csv(geoNetwork_test, "test_geoNetwork.csv")
+
+rm(geoNetwork, geoNetwork_test)
+```
+
+
+## totals
+```{r}
+totals <- read_csv("totals.csv")
+totals_test <- read_csv("totals_test.csv")
+```
+
+目的変数0埋め
+```{r}
+totals$transactionRevenue[is.na(totals$transactionRevenue)]<-0
+```
+
+```{r}
+plot_str(totals)
+```
+
+```{r}
+plot_str(totals_test)
+```
+
+
+```{r}
+dfSummary(totals)
+```
+
+
+```{r}
+dfSummary(totals_test)
+```
+
+```{r}
+plot_missing(totals)
+```
+
+
+```{r}
+plot_missing(totals_test)
+```
+
+欠測の割合はそんなに違わない。
+
+```{r}
+plot_histogram(totals)
+```
+
+
+```{r}
+plot_histogram(totals_test)
+```
+ほとんど0か1なんだよなこれ。
+数値はlog変換してから変数として使っても良いのかもしれん。
+
+```{r}
+totals[is.na(totals)]<-0
+plot_correlation(totals, maxcat = 5L, use = "pairwise.complete.obs")
+```
+
+```{r}
+totals_test[is.na(totals_test)]<-0
+plot_correlation(totals_test, maxcat = 5L, use = "pairwise.complete.obs")
+```
+
+相関関係も割と近い感じ。
+目的変数とpageview, hitsには関係があるかも。
+
+```{r}
+rm(totals, totals_test); gc(); gc()
+```
+
+
+## trafficSource
+```{r}
+trafficSource <- read_csv("trafficSource.csv")
+trafficSource_test <- read_csv("trafficSource_test.csv")
+```
+
+
+```{r}
+plot_str(trafficSource)
+```
+
+
+```{r}
+plot_str(trafficSource_test)
+```
+
+
+```{r}
+dfSummary(trafficSource)
+```
+
+
+```{r}
+dfSummary(trafficSource_test)
+```
+
+```{r}
+plot_missing(trafficSource)
+```
+
+```{r}
+plot_missing(trafficSource_test)
+```
+
+campaignCodeはテストになく、かつ無なので削除。
+欠測の割合高い。
+```{r}
+trafficSource <- trafficSource %>% 
+ select(-campaignCode)
+```
+
+```{r}
+view(dfSummary(trafficSource))
+```
+
+```{r}
+view(dfSummary(trafficSource_test))
+```
+
+
+```{r, fig.height=8, fig.width=20}
+plot_bar(trafficSource)
+```
+
+
+```{r, fig.height=8, fig.width=20}
+plot_bar(trafficSource_test)
+```
+
+train, testで分布が違う傾向はだいたい同じ。なんかtrafficSource_testの図はうまく表示できてないが…。
+
+```{r}
+write_csv(trafficSource, "train_trafficSource.csv")
+write_csv(trafficSource_test, "test_trafficSource.csv")
+
+rm(trafficSource, trafficSource_test)
+```
+
+数字データ多くないのもあってOHEとかやったら変数割と増えそう。

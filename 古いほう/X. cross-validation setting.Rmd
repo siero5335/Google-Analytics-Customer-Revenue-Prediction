@@ -1,0 +1,126 @@
+---
+title: "cross-validation setting"
+author: "Eguchi"
+date: "2018/9/15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse"); library("DataExplorer")
+```
+
+```{r}
+base_train <- read_csv("base_train.csv")
+base_test <- read_csv("base_test.csv")
+
+train_device <- read_csv("train_device.csv")
+test_device <- read_csv("test_device.csv")
+
+train_geoNetwork <- read_csv("train_geoNetwork.csv")
+test_geoNetwork <- read_csv("test_geoNetwork.csv")
+
+train_trafficSource <- read_csv("train_trafficSource.csv")
+test_trafficSource <- read_csv("test_trafficSource.csv")
+
+train_totals <- read_csv("totals.csv")
+test_totals <- read_csv("totals_test.csv")
+
+dftrain <- data.frame(base_train, train_device, train_geoNetwork, train_trafficSource, train_totals)
+dftest <- data.frame(base_test, test_device, test_geoNetwork, test_trafficSource, test_totals)
+
+rm(base_train, train_device, train_geoNetwork, train_trafficSource, train_totals, 
+   base_test, test_device, test_geoNetwork, test_trafficSource, test_totals); gc(); gc()
+```
+
+
+```{r}
+dftrain$transactionRevenue[is.na(dftrain$transactionRevenue)] <- 1
+```
+
+```{r}
+dftrain$adwordsClickInfo.criteriaParameters <- NULL
+dftest$adwordsClickInfo.criteriaParameters <- NULL
+```
+
+```{r}
+dftrain <- dftrain[order(as.Date(dftrain$date, format="%Y/%m/%d")),]
+```
+
+```{r}
+dftest <- dftest[order(as.Date(dftest$date, format="%Y/%m/%d")),]
+```
+
+```{r}
+temp_daycount <- as.data.frame(table(dftrain$date))
+temp_daycount2 <- as.data.frame(table(dftest$date))
+```
+
+```{r}
+ dftrain$googlehome <- c(rep(0, sum(temp_daycount$Freq[1:95])),  #NULL
+  rep(1, (sum(temp_daycount$Freq[1:248]) - sum(temp_daycount$Freq[1:95]))), #america
+  rep(2, (sum(temp_daycount$Freq[1:307]) - sum(temp_daycount$Freq[1:248]))), #Eng
+  rep(3, (sum(temp_daycount$Freq[1:353]) - sum(temp_daycount$Freq[1:307]))), #Canada
+  rep(4, (sum(temp_daycount$Freq[1:366]) - sum(temp_daycount$Freq[1:353]))) #austraria
+  )
+
+ dftest$googlehome <- c(rep(4, sum(temp_daycount2$Freq[1])),  #austraria
+  rep(5, (sum(temp_daycount2$Freq[1:6]) - sum(temp_daycount2$Freq[1]))), #france
+  rep(6, (sum(temp_daycount2$Freq[1:65]) - sum(temp_daycount2$Freq[1:6]))), #german
+  rep(7, (sum(temp_daycount2$Freq[1:272]) - sum(temp_daycount2$Freq[1:65]))) #Japan
+  )
+```
+
+```{r}
+dftrain$googlehome2 <- c(rep(0, sum(temp_daycount$Freq[1:95])),  #NULL
+  rep(1, (sum(temp_daycount$Freq[1:96]) - sum(temp_daycount$Freq[1:95]))), #america
+  rep(0, (sum(temp_daycount$Freq[1:248]) - sum(temp_daycount$Freq[1:96]))), #america  
+  rep(1, (sum(temp_daycount$Freq[1:249]) - sum(temp_daycount$Freq[1:248]))), #Eng
+  rep(0, (sum(temp_daycount$Freq[1:307]) - sum(temp_daycount$Freq[1:249]))), #Eng  
+  rep(1, (sum(temp_daycount$Freq[1:308]) - sum(temp_daycount$Freq[1:307]))), #Canada
+  rep(0, (sum(temp_daycount$Freq[1:353]) - sum(temp_daycount$Freq[1:308]))), #Canada  
+  rep(1, (sum(temp_daycount$Freq[1:354]) - sum(temp_daycount$Freq[1:353]))), #austraria
+  rep(0, (sum(temp_daycount$Freq[1:366]) - sum(temp_daycount$Freq[1:354]))) #austraria
+  )
+
+dftest$googlehome2 <- c(rep(0, sum(temp_daycount2$Freq[1])),  #austraria
+  rep(1, (sum(temp_daycount2$Freq[1:2]) - sum(temp_daycount2$Freq[1]))), #france                     
+  rep(0, (sum(temp_daycount2$Freq[1:6]) - sum(temp_daycount2$Freq[1:2]))), #france
+  rep(1, (sum(temp_daycount2$Freq[1:7]) - sum(temp_daycount2$Freq[1:6]))), #france
+  rep(0, (sum(temp_daycount2$Freq[1:65]) - sum(temp_daycount2$Freq[1:7]))), #german
+  rep(1, (sum(temp_daycount2$Freq[1:66]) - sum(temp_daycount2$Freq[1:65]))), #german  
+  rep(0, (sum(temp_daycount2$Freq[1:272]) - sum(temp_daycount2$Freq[1:66]))) #Japan
+ )
+```
+
+## time-series CV設定 #trainとtestの時間あわせ
+```{r}
+dftrainCV5 <- dftrain[1: sum(temp_daycount$Freq[1:273]), ]
+dftrainRes5 <- dftrain[sum(temp_daycount$Freq[1:273]+1): sum(temp_daycount$Freq[1:366]), ]
+```
+
+とてもエレガントとは言えんがまあいいや…
+きれいな書き方あれば希望。
+
+```{r}
+write_csv(dftrainCV5, "dftrainCV5.csv")
+write_csv(dftrainRes5, "dftrainRes5.csv")
+write_csv(dftest, "dftestXval.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
